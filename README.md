@@ -84,15 +84,15 @@ fi
 
 now=$(date +%s)
 
-hash=$(echo -n "${pin}${state}${now}${secret}" | sha256sum | awk '{ print $1 }')
+hash=$(echo -n "${pin,,}${state,,}${now}${secret}" | sha256sum | awk '{ print $1 }')
 
 curl \
   -X POST \
   -H 'User-Agent:' \
   -H 'Accept:' \
   -H 'Host:' \
-  -H "X-Pin: $pin" \
-  -H "X-State: $state" \
+  -H "X-Pin: ${pin,,}" \
+  -H "X-State: ${state,,}" \
   -H "X-Time: $now" \
   -H "X-Hash: $hash" \
   "$host"
