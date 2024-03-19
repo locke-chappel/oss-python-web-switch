@@ -14,6 +14,8 @@ HTTP POST to `/pins` with the following headers: `X-Pin: <pin number>`, `X-State
 
 HTTP GET to `/pins` with the following headers: `X-Pin: <pin number>`, `X-Time: <seconds since unix epoch>`, and `X-Hash: <sha-256>` gets the pin's current state.  
 
+An optional header of `X-Key: <key index>` can be specified to select a specific shared secret. If not provided the first secret will be assumed.  
+
 #### Valid Pin Numbers
 0-22 inclusive and `LED`
 
@@ -38,7 +40,7 @@ The `settings.py` file contains configurable values that you will need to set (e
   
 `WIFI_RECONNECT_INTERVAL` the number of seconds before the program will test if the WiFi connection is still alive and if not reconnect (default is 5 minutes)  
   
-`SHARED_SECRET` the pre-shared shared secret value used when generating the hash header value  
+`SHARED_SECRET` an array of pre-shared shared secrets to used when generating the hash header value  
   
 `MAX_TTL` the number of seconds old a request be before it is rejected  
   
