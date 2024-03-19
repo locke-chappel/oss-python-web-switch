@@ -22,10 +22,13 @@ PIN_ID_MAX = const(22)
 
 HTTP_NEWLINE = const(b'\r\n')
 HTTP_NO_CONTENT = const(b'HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n')
+HTTP_RESPONSE_1 = const("HTTP/1.1 200 OK\r\nContent-Length: ")
+HTTP_RESPONSE_2 = const("\r\nContent-Type: text/plain\r\n\r\n")
 HTTP_ERROR_1 = const("HTTP/1.1 422 Unprocessable Content\r\nContent-Length: ")
 HTTP_ERROR_2 = const("\r\nContent-Type: text/plain\r\n\r\n")
 
-HTTP_METHOD = const(b'post ')
+HTTP_POST_METHOD = const(b'post ')
+HTTP_GET_METHOD = const(b'get ')
 HTTP_VERSION = const(b' http')
 HTTP_ALLOWED_URI = const(b'/pins')
 HTTP_HEADER_PIN = const(b'x-pin: ')
@@ -34,6 +37,8 @@ HTTP_HEADER_TIME = const(b'x-time: ')
 HTTP_HEADER_HASH = const(b'x-hash: ')
 
 STATE_ON = const(b'on')
+STATE_ON_STR = const('on')
+STATE_OFF_STR = const('off')
 
 def IsConnectedToWiFi():
     if WLAN.isconnected():
@@ -72,6 +77,13 @@ def CreateSocket():
     s.listen()
     return s
 
+def GetCurrentPinState(pinId):
+    pin = machine.Pin(pinId, machine.Pin.OUT)
+    
+    if pin.value() == 1:
+        return STATE_ON_STR
+    return STATE_OFF_STR
+
 def GetHeader(headerId, request):
     start = request.find(headerId)
     if start < 0:
@@ -81,6 +93,17 @@ def GetHeader(headerId, request):
     value = request[start + len(headerId):end]
     PrintDebug(headerId.decode(), value)
     return value
+
+def GetMethod(request):
+    start = request.find(HTTP_POST_METHOD)
+    if start == 0:
+        return "post"
+
+    start = request.find(HTTP_GET_METHOD)
+    if start == 0:
+        return "get"
+
+    return None
 
 def GetPin(request, sha256):
     pinId = GetHeader(HTTP_HEADER_PIN, request)
@@ -122,6 +145,10 @@ def RespondError(con, message):
     con.send(HTTP_ERROR_1 + str(len(message)) + HTTP_ERROR_2 + message)
     con.close()
 
+def RespondContent(con, message):
+    con.send(HTTP_RESPONSE_1 + str(len(message)) + HTTP_RESPONSE_2 + message)
+    con.close()
+    
 def RespondNoContent(con):
     con.send(HTTP_NO_CONTENT)
     con.close()
@@ -142,13 +169,13 @@ def SetPin(pinId, state):
             os.remove("/pins/" + str(pinId))
     
 def ValidateEndPoint(request):
-    # Check for HTTP POST and get URI
-    start = request.find(HTTP_METHOD)
-    if start < 0:
+    method = GetMethod(request)
+    if method != "post" and method != "get":
         return False
     
-    end = request.find(HTTP_VERSION, start + 5)
-    httpRequest = request[start + 5:end]
+    start=len(method) + 1
+    end = request.find(HTTP_VERSION, start)
+    httpRequest = request[start:end]
     PrintDebug("URI: ", httpRequest)
     
     if httpRequest != HTTP_ALLOWED_URI:
@@ -225,10 +252,12 @@ def Main():
             request = con.recv(1024).lower()
             PrintDebug("Received: ", request)
             
-            # Check for HTTP POST and get URI
+            # Check request method and URI
             if not ValidateEndPoint(request):
                 RespondError(con, "Invalid URI and/or method")
                 continue
+            
+            method = GetMethod(request)
             
             # Create SHA-256 object for use as we add data
             sha256 = hashlib.sha256()
@@ -239,11 +268,12 @@ def Main():
                 RespondError(con, "Invalid X-Pin header, ignoring request")
                 continue
 
-            # X-State header
-            pinState = GetPinState(request, sha256)
-            if pinState is None:
-                RespondError(con, "Invalid X-State header, ignoring request")
-                continue
+            if method == "post":
+                # X-State header
+                pinState = GetPinState(request, sha256)
+                if pinState is None:
+                    RespondError(con, "Invalid X-State header, ignoring request")
+                    continue
               
             # X-Time Header
             if not ValidateRequestTime(request, sha256):
@@ -255,11 +285,18 @@ def Main():
                 RespondError(con, "Invalid X-Hash header, ignoring request")
                 continue
             
-            # All good, set pin state
-            SetPin(pinId, pinState)
-            
-            # Respond to client
-            RespondNoContent(con)
+            # All good, process request
+            if method == "post":
+                SetPin(pinId, pinState)
+                
+                # Respond to client
+                RespondNoContent(con)
+            else:
+                value = GetCurrentPinState(pinId)
+                PrintDebug("Current Pin Value: ", value)
+                
+                # Respond to client
+                RespondContent(con, value)
             
         except OSError as ex:
             if con is not None:
