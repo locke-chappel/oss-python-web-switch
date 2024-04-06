@@ -77,7 +77,7 @@ function prompt() {
 if [[ ! -z "$1" ]]; then
   get="$1"
 else
-  get=$(prompt "Get or Set? [Set] ")
+  get=$(prompt "Get or Set? [Set] " "set")
 fi
 
 if [[ -z "$get" || "${get,,}" != "get" ]]; then
