@@ -248,10 +248,12 @@ def RestoreConfig():
         PrintDebug("Configuring " + pin)
         p = open(_CONFIG_DIR + "/" + pin, "rb")
         state = p.read()
-        PrintDebug("Initalizing " + pin + " to " + state.decode())
-        SetPin(pin, state)
         p.close()
-
+        PrintDebug("Initalizing " + pin + " to " + state.decode())
+        if pin.isdigit():
+          pin = int(pin)
+        SetPin(pin, state)
+        
 def Main():
     RestoreConfig()
     
